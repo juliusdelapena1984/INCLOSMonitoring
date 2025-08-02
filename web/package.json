@@ -1,7 +1,7 @@
 {
   "name": "web",
   "version": "0.1.0",
-  "proxy": "http://localhost:5000",
+  "proxy": "http://localhost:3001",
   "private": true,
   "dependencies": {
     "@testing-library/dom": "^10.4.0",
@@ -10,7 +10,7 @@
     "@testing-library/user-event": "^13.5.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "react-scripts": "5.0.1",
+    "serve": "^10.0.2",
     "web-vitals": "^2.1.4"
   },
   "scripts": {

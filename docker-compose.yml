@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    ports:
+      - "80:80" # Expose web on host port 80
+    depends_on:
+      - express-server # web depends on Express server for API calls during development
+    restart: always
+
+  express-server:
+    build:
+      context: ./express-server
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3001" # Express server port
+    depends_on:
+      - data-service # Express server depends on Python api
+    restart: always
+
+  data-service:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    ports:
+      - "5000:5000" # Python api port
+    restart: always
+
+  ngrok:
+    image: ngrok/ngrok:latest
+    container_name: ngrok_tunnel
+    environment:
+      NGROK_AUTHTOKEN: "30gGsvP0CveANEYtIXwqvh2H0AK_2j3FeWM4gVr118xHDixNX" # Replace with your actual ngrok auth token
+      NGROK_PORT: "web:80" # Tunnel the React web's port
+      NGROK_BINDTLS: "true" # Optional: Only open HTTPS tunnel
+    ports:
+      - "4040:4040" # Expose ngrok's web interface for inspection (optional)
+    depends_on:
+      - web # ngrok depends on the web being up
+    command: "http web:80" # Command to start the ngrok tunnel
+    restart: always

@@ -1,8 +1,6 @@
 import os
 import pathlib
 import uuid
-from io import BytesIO
-from turtle import pd
 
 import requests
 from flask import Flask, session, abort, redirect, request, jsonify
@@ -12,10 +10,33 @@ from pip._vendor import cachecontrol
 import google.auth.transport.requests
 from flask_cors import CORS
 import datetime
+from waitress import serve
+from flasgger import Swagger, swag_from # Import Swagger and swag_from for documentation
+import werkzeug.datastructures # Required for FileStorage type in Swagger docs
 
 app = Flask(__name__)
 # Enable CORS for all origins. In a production environment, restrict this to your frontend's domain.
-CORS(app)
+CORS(app, origins=['https://013cb96c59e3.ngrok-free.app'])
+
+# Initialize Flasgger for Swagger UI documentation
+swagger_config = {
+    "headers": [],
+    "specs": [
+        {
+            "endpoint": 'apispec_1',
+            "route": '/apispec_1.json',
+            "rule_filter": lambda rule: True, # all in
+            "model_filter": lambda tag: True, # all in
+        }
+    ],
+    "static_url_path": "/flasgger_static",
+    "swagger_ui_bundle_path": "/flasgger_static/swagger-ui-bundle.js",
+    "swagger_ui_standalone_preset_path": "/flasgger_static/swagger-ui-standalone-preset.js",
+    "specs_route": "/api-docs" # Custom URL for Swagger UI
+}
+Swagger(app, config=swagger_config)
+
+
 
 # In-memory data store for missions
 # In a real application, you would use a database like Firestore, PostgreSQL, etc.
@@ -53,7 +74,7 @@ db = {
             "time": "18:00",
             "location": "Elizabeth Function Hall",
             "workerName": "Jeffrey Dote",
-            "workerImage": "https://placehold.co/40x40/FF0000/FFFFFF?text=JD",
+            "workerImage": "https://drive.google.com/uc?export=view&id=1i7pRXHtA49qMKzHKEPy8moiCsRmTv931",
             "nonMemberGuests": "John, Mary, 2 others",
             "attendedMembers": [
                 {"memberId": "member_1", "memberGuests": "Jane's Mom"},
@@ -66,8 +87,8 @@ db = {
             "date": "2025-07-22",
             "time": "10:30",
             "location": "Union City Park",
-            "workerName": "Maria Sanchez",
-            "workerImage": "https://placehold.co/40x40/00FF00/FFFFFF?text=MS",
+            "workerName": "Julius Dela Pena",
+            "workerImage": "data:image/jpeg;base64,/9j/4QBWRXhpZgAATU0AKgAAAAgABAEaAAUAAAABAAAAPgEbAAUAAAABAAAARgEoAAMAAAABAAEAAAITAAMAAAABAAEAAAAAAAAAAAABAAAAAQAAAAEAAAAB/9sAQwCgbniMeGSgjIKMtKqgvvD///Dc3PD//////////////////////////////////////////////////////////9sAQwGqtLTw0vD//////////////////////////////////////////////////////////////////////////////8AAEQgBIAEgAwEiAAIRAQMRAf/EABgAAQEBAQEAAAAAAAAAAAAAAAABAgME/8QAKBABAQACAgEEAAYDAQAAAAAAAAECESExEgNBUWETIjJxgZFCUqGx/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAH/xAAWEQEBAQAAAAAAAAAAAAAAAAAAEQH/2gAMAwEAAhEDEQA/AKAAAAACgAAAAmVuuOAW8M3P4YuV+eE2DUvB5MyiKtrUyc9m1R22svbjK1jlyDqJsBQAEUBBUBUUBFRQAAQUBkAAABUUAAAFBHLLLddM+MXAF/lNKoILraaoCLqnjQQa8UuIG3TC8cuTeNFdVYxrSCiCoqACiACooAAAAMgAAAKAAACooOfqdOTWd3l9GM9wWYtzGEVFNLqAB4w0oDOk8W0ByyxZl1Xaxyzx1yC7bxy4co1Lqg6bhuM/wb+ga3DcZ/g/gGtw8mT+Aa8o05TKbnDqoCAioAIAAAAqKAAAZXWNGfUusf3BybjE7dIGLGmY0iiooAGwEVAGMpw2lBw6rSZdrj7KjpGb6kl/T/1osxv+MRWPxJ/q1xeYan+sUBKqAzjJLu9urjj3uuygAgAKIAIAAKigAAOfqdujl6nYJj22zj0eSK6RXKZ/TczBsJZVBKKzbICjPnE85QaSpcll2DlnOUx7dc5uOM7ijs1MNztlqZ6mtIHh9s3itfifTNu6CF6C9Axh+qO+qxjNR0nQJq/BqtAM6pqtAOYCoAAKigAAMerOJW2fU/QDMn5YeMqxLdIrUwh4fDOWVklalty1udbUJNN7Z/fuEvKDTNjbFBPA/DhbdbTzup9qL4kmqeXOqqA465ru45z81+wanSnXBv6ANm/qpv6UXZtN/S7BZ06TpznTpOkFABAAYAVAAAAFEAVnOcf00l6Bk0RpFTW5r2WSTpdKDNSdrkYg17JZtQGdExk6aAZ8RpAGdb9SX6VYCZdxzyz1danDeXaXm8yAx534je5ZuJqfEVQBEGp06TpznTpOgVFQAAGAFQAAAAABRAEjUZ92oiqEL0DF5rWMSfp62Y5bgNIXLXyblgKAAioCVYlWAxewAARQABqdOk6c506Y9IKgKgADAAAAAAAAAFBPdqMTtqIrSWiAXghpeoAEhoFAnACKgJe0t9lpjnjeOqDA66TSpXMdNfv/AHTU+/7oOY6a/f8AupewSdOmPTDePQAAAAMAAAAAAAAAloJ7tMVqcSX5Bpm3Xs1vhLyis7tWbNLoVDysa0eIJu32WLoEEVm0GcrqWuTWd3wyo9GF8sYrn6Pu66EQUBEvbSXsEanTLU6AAAABgRQAAAAAAGWmQRcs5MJO6zldMA7Y3auOOWq7S7RVNEUE0qgIDNoFunPLIytYABdKjWGXjdu7zO3pZbx1vmf+CtgCKze2mb3EEanTLU6UAAAAc1RQAAAAEGc8tcQGmMspOmd35qAW7AAawumWsewdZWnNYitm2QC34Zsk5q26csstgZXaAqDXttJPelBCcAC+V+auOeWP2yuhXoxymU3C9xwxyuN4dpZlJYgNY9MrOhFAUAAc1QAAABMv00F2xnN8yomwQAF0gASbaxhLpZYDU++1Ty99L5bgq6OInaWkSp6mXtHNcu0AXoQF2gAAALtAVdrMrLuMqDf4l+I1j6k9+HIB6RwxyuN4dccpl0I0ADmAAAAzll7GeWuJ25gqAAAAAATsAdcbJL/xaxObI1dqib0WpUiKlFqa9wQD2AAAFQBdGzYpoTYCqmwFJbOYgDrPU+Y6PPtvDLXHsIAAqCZXWKDFu7tAUAAAAFnwkWgU40TtAdMJO2rZpmbmPTFtoFu6bEBe6WkQAIAAAAAAAAAAAogCkqKDoOe78mOXjlvWwb3PlnO76Zt3bQAAAAAAAAFhrmLivtv6Ayy/LqMhQQg1ICItQD2D2AAAAAAAAAAAAUADYIAAAAAAAAsRYC6QKCxd8RhQVOygC7RAXaAAAAAAAAAAAAAAAAAAAAAAAAAAqKAABD3NACKgAAAAAAAAAAAAAAAAAAAAP//Z",
             "nonMemberGuests": "",
             "attendedMembers": [
                 {"memberId": "member_3", "memberGuests": ""},
@@ -94,7 +115,7 @@ db = {
     "evangelicalWorkers": [
         {"id": "worker_1", "name": "Jeffrey Dote", "image": "https://placehold.co/40x40/FF0000/FFFFFF?text=JD"},
         {"id": "worker_2", "name": "Maria Sanchez", "image": "https://placehold.co/40x40/00FF00/FFFFFF?text=MS"},
-        {"id": "worker_3", "name": "Carlos Ramirez", "image": "https://placehold.co/40x40/0000FF/FFFFFF?text=CR"},
+        {"id": "worker_3", "name": "Julius Dela Pena", "image": "https://drive.google.com/uc?export=view&id=1i7pRXHtA49qMKzHKEPy8moiCsRmTv931"},
     ]
 }
 
@@ -132,6 +153,51 @@ def allowed_file(filename):
 
 # --- Mission Endpoints ---
 @app.route('/api/missions', methods=['GET'])
+@swag_from({
+    'tags': ['Missions'],
+    'parameters': [],
+    'responses': {
+        200: {
+            'description': 'A list of Bible missions, sorted by date and time.',
+            'schema': {
+                'type': 'array',
+                'items': {
+                    '$ref': '#/definitions/Mission'
+                }
+            }
+        }
+    },
+    'definitions': {
+        'AttendedMember': {
+            'type': 'object',
+            'properties': {
+                'memberId': {'type': 'string', 'description': 'ID of the church member'},
+                'memberGuests': {'type': 'string', 'description': 'Guests brought by this member (CSV format)'}
+            },
+            'required': ['memberId', 'memberGuests']
+        },
+        'Mission': {
+            'type': 'object',
+            'properties': {
+                'id': {'type': 'string', 'readOnly': True, 'description': 'The unique identifier of a mission'},
+                'date': {'type': 'string', 'description': 'Date of the mission (YYYY-MM-DD)'},
+                'time': {'type': 'string', 'description': 'Time of the mission (HH:MM)'},
+                'location': {'type': 'string', 'description': 'Location/Venue of the mission'},
+                'workerName': {'type': 'string', 'description': 'Name of the evangelical worker'},
+                'workerImage': {'type': 'string', 'description': 'URL of the worker\'s image'},
+                'nonMemberGuests': {'type': 'string', 'description': 'Guests who are not church members (CSV format)'},
+                'attendedMembers': {
+                    'type': 'array',
+                    'items': {'$ref': '#/definitions/AttendedMember'},
+                    'description': 'List of attended church members and their guests'
+                },
+                'guests': {'type': 'string', 'readOnly': True, 'description': 'Aggregated list of all guests'},
+                'attended': {'type': 'integer', 'readOnly': True, 'description': 'Total count of attended members'},
+            },
+            'required': ['date', 'time', 'location', 'workerName']
+        }
+    }
+})
 def get_missions():
     """
     GET endpoint to retrieve all Bible missions.
@@ -353,101 +419,6 @@ def delete_entity(entity_type, entity_id):
     return jsonify({"error": f"{entity_type.capitalize()} not found"}), 404
 
 
-# --- NEW: Bulk Upload API Endpoint ---
-@app.route('/api/bulk-upload/<string:entity_type>', methods=['POST'])
-def bulk_upload_entity(entity_type):
-    if entity_type not in db:
-        return jsonify({"message": "Invalid entity type for bulk upload"}), 400
-
-    if 'file' not in request.files:
-        return jsonify({"message": "No file part in the request"}), 400
-
-    file = request.files['file']
-
-    if file.filename == '':
-        return jsonify({"message": "No selected file"}), 400
-
-    if not allowed_file(file.filename):
-        return jsonify({"message": "File type not allowed. Only CSV, XLSX, XLS are supported."}), 400
-
-    file_extension = file.filename.rsplit('.', 1)[1].lower()
-
-    try:
-        # Read file content into BytesIO for in-memory processing
-        file_content = BytesIO(file.read())
-
-        if file_extension == 'csv':
-            df = pd.read_csv(file_content)
-        elif file_extension in ['xlsx', 'xls']:
-            # Pandas automatically infers engine, but explicitly setting can be safer
-            df = pd.read_excel(file_content, engine='openpyxl' if file_extension == 'xlsx' else 'xlrd')
-        else:
-            return jsonify({"message": "Unsupported file format."}), 400
-
-        # Convert DataFrame to a list of dictionaries for processing
-        data_to_process = df.to_dict(orient='records')
-
-        success_count = 0
-        failed_rows = [] # Fixed: Initialized as an empty list
-
-        for i, item_data in enumerate(data_to_process):
-            is_valid = True
-            # Determine required fields based on entity type
-            if entity_type == 'members':
-                required_fields = ["fullName", "areaGroup", "cfo", "offices"]
-            elif entity_type == 'venues':
-                required_fields = ["name", "address"]
-            elif entity_type == 'evangelicalWorkers':
-                required_fields = ["name", "image"]
-            else:
-                required_fields = []  # Fallback, though entity_type check should prevent this
-
-            for field in required_fields:
-                # Check for None or empty string after stripping whitespace
-                if field not in item_data or item_data[field] is None or str(item_data[field]).strip() == '':
-                    failed_rows.append({"row_number": i + 2,
-                                        "error": f"Missing required field: '{field}'"})  # +2 for 1-based index and header row
-                    is_valid = False
-                    break
-
-            if is_valid:
-                try:
-                    # Attempt to update if ID exists, otherwise add
-                    if 'id' in item_data and item_data['id'] is not None and str(item_data['id']).strip() != '':
-                        success, message = _update_entity_logic(entity_type, str(item_data['id']), item_data)
-                        if not success:
-                            failed_rows.append({"row_number": i + 2, "error": f"Update failed: {message}"})
-                        else:
-                            success_count += 1
-                    else:
-                        success, message = _add_entity_logic(entity_type, item_data)
-                        if not success:
-                            failed_rows.append({"row_number": i + 2, "error": f"Add failed: {message}"})
-                        else:
-                            success_count += 1
-                except Exception as e:
-                    failed_rows.append({"row_number": i + 2, "error": f"Processing error: {str(e)}"})
-
-        # Re-sort missions after any potential updates/adds (if entity_type was missions)
-        if entity_type == 'missions':
-            db['missions'] = sort_missions(db['missions'])
-
-        if failed_rows:
-            return jsonify({
-                "message": f"Bulk upload completed with {success_count} successes and {len(failed_rows)} failures.",
-                "total_processed": len(data_to_process),
-                "failed_rows": failed_rows
-            }), 200  # Return 200 OK even with failures, as processing completed
-
-        return jsonify({
-            "message": f"Bulk upload successful! {success_count} records processed.",
-            "total_processed": len(data_to_process)
-        }), 200
-
-    except Exception as e:
-        return jsonify({"message": f"Server error during file processing: {str(e)}"}), 500
-
-
 def login_is_required(function):
     def wrapper(*args, **kwargs):
         if "google_id" not in session:
@@ -501,4 +472,5 @@ def index():
 
 
 if __name__ == "__main__":
+    serve(app, host="0.0.0.0", port=5000)
     app.run(debug=True)
