@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+      tags:
+        - juliusdelapena1984/inc-attendance-monitor-web-railway:v0.001
+        - juliusdelapena1984/inc-attendance-monitor-web-railway:latest
+    ports:
+      - "80:80" # Expose web on host port 80
+    depends_on:
+      - express-server # web depends on Express server for API calls during development
+    networks:
+      - my_app_network # Ensure they are on the same network
+    restart: always
+    environment:
+      - EXPRESS_SERVER_HOST_PORT=inc-attendance-monitor-express-server.railway.internal:3001
+
+  express-server:
+    build:
+      context: ./express-server
+      dockerfile: Dockerfile
+      tags:
+        - juliusdelapena1984/inc-attendance-monitor-express-server-railway:v0.001
+        - juliusdelapena1984/inc-attendance-monitor-express-server-railway:latest
+    ports:
+      - "3001:3001" # Express server port
+    depends_on:
+      - data-service # Express server depends on Python api
+    networks:
+      - my_app_network # Ensure they are on the same network
+    restart: always
+    environment:
+      # override or set the backend target here
+      - API_DATA_SERVICE_URL=http://inc-attendance-monitor-data-service.railway.internal:5000
+
+  data-service:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+      tags:
+        - juliusdelapena1984/inc-attendance-monitor-data-service-railway:v0.001
+        - juliusdelapena1984/inc-attendance-monitor-data-service-railway:latest
+    ports:
+      - "5000:5000" # Python api port
+    networks:
+      - my_app_network # Ensure they are on the same network
+    restart: always
+
+networks:
+  my_app_network:

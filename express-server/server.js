@@ -3,9 +3,15 @@ const { createProxyMiddleware } = require('http-proxy-middleware');
 const app = express();
 const PORT = 3001;
 
+// Read target from env var with a safe default fallback
+// Railway: http://inc-attendance-monitor-data-service.railway.internal:5000
+// NGROK: http://data-service:5000
+const apiTarget = process.env.API_DATA_SERVICE_URL;
+
+
 // Proxy /api requests to the Python backend
 app.use('/api', createProxyMiddleware({
-  target: 'http://data-service:5000', // Target the Python Flask backend service
+  target: apiTarget,
   changeOrigin: true,
   pathRewrite: {
     '^/api': '/api' // Rewrite path, e.g., /api/data becomes /api/data on Flask
